@@ -40,15 +40,18 @@ Duct tape.";
 
     #[test]
     fn case_insensitive() {
-        let query = "rUsT";
+        let query = "RuSt";
         let contents = "\
 Rust:
 safe, fast, productive.
 Pick three.
-Trust me.";
+Trust me.
+rusty crusty
+crustial
+    ";
 
         assert_eq!(
-            vec!["Rust:", "Trust me."],
+            vec!["Rust:", "Trust me.", "rusty crusty", "crustial"],
             search_case_insensitive(query, contents)
         );
     }
