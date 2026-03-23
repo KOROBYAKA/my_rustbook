@@ -16,9 +16,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let conf = Config::build(args).unwrap_or_else(|err| {
+    let conf = Config::build(env::args()).unwrap_or_else(|err| {
         println!("Problem parsing arguments: {err}");
         process::exit(1);
     });
