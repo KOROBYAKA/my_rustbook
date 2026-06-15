@@ -4,7 +4,7 @@ use std::{
 };
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>,
+    sender: Option<mpsc::Sender<Job>>,
 }
 
 pub struct PoolCreationError {
@@ -22,14 +22,34 @@ impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || {
             loop {
-                let job = receiver.lock().unwrap().recv().unwrap();
-                println!("Worker {id} got job. Executing...");
+                let message = receiver.lock().unwrap().recv();
 
-                job()
+                match message {
+                    Ok(job) => {
+                        println!("Worker {id} got a job; executing.");
+
+                        job();
+                    }
+                    Err(_) => {
+                        println!("Worker {id} disconnected; shutting down.");
+                        break;
+                    }
+                }
             }
         });
-
         Worker { id, thread }
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        drop(self.sender.take());
+
+        for worker in &mut self.workers.drain(..) {
+            println!("Shutting down a worker {}", &worker.id);
+
+            worker.thread.join().unwrap();
+        }
     }
 }
 
@@ -53,7 +73,10 @@ impl ThreadPool {
             workers.push(worker);
         }
 
-        ThreadPool { workers, sender }
+        ThreadPool {
+            workers,
+            sender: Some(sender),
+        }
     }
 
     pub fn build(size: usize) -> Result<ThreadPool, PoolCreationError> {
@@ -69,7 +92,10 @@ impl ThreadPool {
                     workers.push(worker);
                 }
 
-                return Ok(ThreadPool { workers, sender });
+                return Ok(ThreadPool {
+                    workers,
+                    sender: Some(sender),
+                });
             }
             _ => return Err(PoolCreationError::new()),
         }
@@ -80,6 +106,8 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-        self.sender.send(job).unwrap();
+        if let Some(sender) = &self.sender {
+            sender.send(job).unwrap();
+        }
     }
 }
